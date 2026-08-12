@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chrome Reverse Proxy - 规则配置</title>
+  <link rel="stylesheet" href="../css/options.css" />
+</head>
+<body>
+  <header>
+    <h1>Chrome Reverse Proxy</h1>
+    <p class="sub">Background 代理 + Content Script 重写，规避跨域并携带/添加请求头</p>
+  </header>
+
+  <section class="card" id="form-card">
+    <h2 id="form-title">新增规则</h2>
+    <input type="hidden" id="edit-id" />
+    <div class="grid">
+      <label>规则名称
+        <input id="f-name" type="text" placeholder="例如：本地开发 API" />
+      </label>
+      <label>匹配类型
+        <select id="f-matchType">
+          <option value="prefix">前缀匹配（nginx location 风格）</option>
+          <option value="regex">正则表达式</option>
+        </select>
+      </label>
+      <label>匹配规则（页面请求 URL 前缀或正则）
+        <input id="f-pattern" type="text" placeholder="https://app.example.com/api/" />
+      </label>
+      <label>转发目标（目标前缀，替换掉匹配前缀）
+        <input id="f-target" type="text" placeholder="https://api.real-backend.com/" />
+      </label>
+      <label>转发的请求头（逗号分隔，* 表示转发全部可读请求头）
+        <input id="f-forwardHeaders" type="text" placeholder="content-type,authorization,x-request-id" />
+      </label>
+      <label>附加请求头（JSON，key: value，仅在 Background 中注入，页面不可见）
+        <textarea id="f-addHeaders" rows="3" placeholder='{"Authorization":"Bearer <token>","X-API-Key":"xxxx"}'></textarea>
+      </label>
+      <label class="inline"><input id="f-forwardPageCookie" type="checkbox" /> 携带页面 Cookie（document.cookie 作为 Cookie 头发送）</label>
+      <label class="inline"><input id="f-includeCookies" type="checkbox" /> 携带目标域 Cookie（后台 credentials: include）</label>
+      <label class="inline"><input id="f-enabled" type="checkbox" checked /> 启用</label>
+    </div>
+    <div class="actions">
+      <button id="btn-save" class="primary">保存</button>
+      <button id="btn-cancel" class="ghost" hidden>取消编辑</button>
+      <span id="form-error" class="error"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>规则列表</h2>
+      <div class="log-actions">
+        <input type="file" id="import-file" accept=".json,application/json" hidden />
+        <button id="btn-import">导入配置</button>
+        <button id="btn-export">导出配置</button>
+        <button id="btn-copy-config" class="primary">复制配置</button>
+      </div>
+    </div>
+    <p class="hint">
+      按列表顺序匹配，命中第一条即生效。URL 重写与 nginx <code>proxy_pass</code> 一致：
+      <code>目标URL = 转发目标 + 原始URL去掉匹配前缀</code>（查询参数自动保留）。
+    </p>
+    <div class="test-match">
+      <input id="test-url" type="text" placeholder="粘贴页面实际请求 URL 测试是否命中规则，如 http://ccs-eicp.cimcwetrans.com/gateway/biz/seaExportOrder/page" />
+      <button id="btn-test-match" class="primary">测试匹配</button>
+    </div>
+    <p id="test-result" class="hint"></p>
+    <div id="rule-list"></div>
+  </section>
+
+  <section class="card" id="logs-card">
+    <div class="card-head">
+      <h2>拦截日志</h2>
+      <div class="log-actions">
+        <label class="inline"><input id="f-logging" type="checkbox" /> 启用日志记录</label>
+        <label class="inline"><input id="f-debug" type="checkbox" /> 调试模式（页面控制台输出拦截日志）</label>
+        <button id="btn-clear-log">清空日志</button>
+        <button id="btn-refresh-log" class="primary">刷新</button>
+      </div>
+    </div>
+    <p id="log-empty" class="empty">暂无日志。</p>
+    <div class="table-wrap">
+      <table id="log-table">
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>方法</th>
+            <th>规则</th>
+            <th>状态/耗时</th>
+            <th>原始 URL</th>
+            <th>目标 URL</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="log-detail" class="detail-inline" hidden>
+      <div class="detail-inline-head">
+        <h3>日志详情</h3>
+        <div>
+          <button id="btn-copy-log">复制日志</button>
+          <button id="btn-close-detail" class="primary">关闭</button>
+        </div>
+      </div>
+      <div id="log-detail-body"></div>
+    </div>
+  </section>
+
+  <script src="../js/options.js"></script>
+</body>
+</html>
