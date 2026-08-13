@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "minimum_chrome_version": "116",
   "description": "浏览器内反向代理：Background 代理 + Content Script 重写，规避跨域并携带/添加请求头。",
-  "permissions": ["storage", "sidePanel"],
+  "permissions": ["storage", "sidePanel", "scripting"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
-    "service_worker": "js/background.js"
+    "service_worker": "js/background/background.js"
   },
   "side_panel": {
     "default_path": "html/sidepanel.html"
@@ -15,14 +15,14 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["js/content.js"],
+      "js": ["js/shared/common.js", "js/content/content.js"],
       "run_at": "document_start",
       "all_frames": true,
       "world": "ISOLATED"
     },
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["js/page-proxy.js"],
+      "js": ["js/content/page-proxy.js"],
       "run_at": "document_start",
       "all_frames": true,
       "world": "MAIN"

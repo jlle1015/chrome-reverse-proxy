@@ -151,13 +151,17 @@ options 页「规则列表」右上角可**导出配置**（下载 `chrome-rever
 ## 文件结构
 
 ```
-manifest.json      MV3 声明（双 world content script + service worker，必须位于根目录）
-js/background.js   Service Worker：代理请求、URL 重写、头转发、附加请求头注入、拦截日志
-js/content.js      隔离世界：规则缓存 + postMessage 与 sendMessage 双向中转
-js/page-proxy.js   MAIN world：挂钩 fetch/XHR，捕获请求并重建响应
-js/options.js      配置页逻辑（规则管理 + 日志详情 + 导入导出）
-js/popup.js        面板逻辑（快捷开关 + 最近日志）
-html/options.html  配置页
-html/popup.html    插件面板
-css/options.css    配置页样式
+manifest.json               MV3 声明（双 world content script + service worker，必须位于根目录）
+js/background/background.js Service Worker：代理请求、URL 重写、头转发、附加请求头注入、拦截日志
+js/content/content.js       隔离世界：规则缓存 + postMessage 与 sendMessage 双向中转
+js/content/page-proxy.js    MAIN world：挂钩 fetch/XHR，捕获请求并重建响应
+js/shared/common.js         公共工具：HTML 转义、域名匹配（一级域名/子域/IP）、规则相关性判断
+js/views/options.js         配置页逻辑（规则管理 + 日志详情 + 导入导出）
+js/views/popup.js           面板逻辑（快捷开关 + 最近日志 + 打开侧边栏）
+js/views/sidepanel.js       侧边栏逻辑（页面规则 + 拦截日志）
+js/views/view-common.js     popup/侧边栏共用：渲染、事件绑定、重新注入 Content Script
+html/options.html           配置页
+html/popup.html             插件面板
+html/sidepanel.html         浏览器侧边栏
+css/options.css             配置页样式
 ```

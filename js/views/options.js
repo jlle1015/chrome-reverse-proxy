@@ -81,41 +81,6 @@ function resetForm() {
   document.getElementById('form-error').textContent = '';
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-  });
-}
-
-function sansScheme(u) {
-  return String(u).replace(/^https?:\/\//i, '');
-}
-
-const SECOND_LEVEL_TLDS = new Set(['com', 'net', 'org', 'gov', 'edu', 'ac', 'co', 'ne', 'or', 'go', 'mil', 'ltd', 'biz']);
-
-function hostOfPattern(pattern) {
-  let p = String(pattern || '').trim();
-  p = p.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
-  const slash = p.search(/[/?#]/);
-  if (slash >= 0) p = p.slice(0, slash);
-  const colon = p.indexOf(':');
-  if (colon >= 0) p = p.slice(0, colon);
-  if (/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(p)) return p;
-  return '';
-}
-
-function registrableDomain(host) {
-  if (!host) return '';
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
-  const labels = host.split('.');
-  if (labels.length <= 2) return host;
-  const last = labels.length - 1;
-  if (/^[a-z]{2}$/.test(labels[last]) && SECOND_LEVEL_TLDS.has(labels[last - 1])) {
-    return labels.slice(-3).join('.');
-  }
-  return labels.slice(-2).join('.');
-}
-
 function render() {
   const list = document.getElementById('rule-list');
   list.innerHTML = '';
@@ -423,10 +388,6 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   }
   e.target.value = '';
 });
-
-function escapeAttr(s) {
-  return escapeHtml(s).replace(/"/g, '&quot;');
-}
 
 function syncDebugToggle(enabled) {
   document.getElementById('f-debug').checked = !!enabled;

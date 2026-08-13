@@ -54,20 +54,24 @@
       flex: none;
       accent-color: #0969da;
     }
-    .name {
+    .rule .info {
       flex: 1;
+      min-width: 0;
+    }
+    .rule .name {
+      display: block;
+      font-size: 13px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 13px;
     }
-    .target {
+    .rule .target {
+      display: block;
       color: #888;
       font-size: 11px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 110px;
     }
     .rule.off .name,
     .rule.off .target {
@@ -219,6 +223,7 @@
       <h1>Chrome Reverse Proxy</h1>
       <div id="tab-status">正在检测当前页面…</div>
     </div>
+    <button id="btn-reinject" title="向当前页面重新注入 Content Script（无需刷新页面）">重新注入</button>
     <button id="btn-toggle-all" class="primary">停用全部</button>
   </header>
 
@@ -241,6 +246,8 @@
     <a id="open-logs" href="#">查看全部日志</a>
   </p>
 
-  <script src="../js/popup.js"></script>
+  <script src="../js/shared/common.js"></script>
+  <script src="../js/views/view-common.js"></script>
+  <script src="../js/views/popup.js"></script>
 </body>
 </html>
