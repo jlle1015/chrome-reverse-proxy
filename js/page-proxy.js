@@ -173,6 +173,7 @@
 
     if (typeof input === 'string') {
       url = new URL(input, location.href).href;
+      method = init.method || 'GET';
       headers = init.headers;
       body = init.body;
       signal = init.signal;
@@ -185,6 +186,7 @@
         signal = init.signal || input.signal;
       } else if (typeof input.url === 'string') {
         url = new URL(input.url, location.href).href;
+        method = init.method || 'GET';
         headers = init.headers;
         body = init.body;
         signal = init.signal;
