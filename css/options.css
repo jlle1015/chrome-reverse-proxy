@@ -150,6 +150,34 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.rule-group {
+  margin-bottom: 20px;
+}
+
+.rule-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px 6px;
+  border-bottom: 2px solid #0969da22;
+}
+
+.rule-group-head .group-host {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0969da;
+}
+
+.rule-group-head .group-count {
+  font-size: 12px;
+  color: #8c959f;
+}
+
+.rule-group-body {
+  padding-top: 10px;
+}
+
 .rule.disabled {
   opacity: 0.6;
   background: #fafbfc;

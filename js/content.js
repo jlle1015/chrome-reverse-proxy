@@ -1,7 +1,53 @@
 const RULE_VIEW_FIELDS = ['id', 'enabled', 'matchType', 'pattern', 'includeCookies', 'forwardPageCookie'];
 
+const HOST_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+
+const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+const SECOND_LEVEL_TLDS = new Set(['com', 'net', 'org', 'gov', 'edu', 'ac', 'co', 'ne', 'or', 'go', 'mil', 'ltd', 'biz']);
+
 let rulesCache = [];
 let debugMode = false;
+
+function hostOfPattern(pattern) {
+  let p = String(pattern || '').trim();
+  p = p.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const slash = p.search(/[/?#]/);
+  if (slash >= 0) p = p.slice(0, slash);
+  const colon = p.indexOf(':');
+  if (colon >= 0) p = p.slice(0, colon);
+  return HOST_RE.test(p) ? p.toLowerCase() : '';
+}
+
+function registrableDomain(host) {
+  if (!host) return '';
+  if (IP_RE.test(host)) return host;
+  const labels = host.split('.');
+  if (labels.length <= 2) return host;
+  const last = labels.length - 1;
+  if (/^[a-z]{2}$/.test(labels[last]) && SECOND_LEVEL_TLDS.has(labels[last - 1])) {
+    return labels.slice(-3).join('.');
+  }
+  return labels.slice(-2).join('.');
+}
+
+function isRuleRelevant(rule, pageHost) {
+  if (!rule || rule.enabled === false) return false;
+  if (rule.matchType === 'regex') return true;
+  const host = hostOfPattern(rule.pattern);
+  if (!host) return true;
+  const ph = String(pageHost || '').toLowerCase();
+  const h = host.toLowerCase();
+  if (h === ph) return true;
+  if (ph.endsWith('.' + h) || h.endsWith('.' + ph)) return true;
+  const rootH = registrableDomain(h);
+  const rootP = registrableDomain(ph);
+  return !!rootH && rootH === rootP;
+}
+
+function relevantRules() {
+  return rulesCache.filter((r) => isRuleRelevant(r, location.hostname));
+}
 
 async function refreshRules() {
   const data = await chrome.storage.local.get({ rules: [], debugMode: false });
@@ -10,7 +56,7 @@ async function refreshRules() {
 }
 
 function broadcastRules() {
-  const view = rulesCache.map((r) => {
+  const view = relevantRules().map((r) => {
     const o = {};
     for (const f of RULE_VIEW_FIELDS) if (r[f] !== undefined) o[f] = r[f];
     return o;
@@ -54,7 +100,7 @@ window.addEventListener('message', (e) => {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'ping') {
-    sendResponse({ ok: true, rules: rulesCache.length, debug: debugMode });
+    sendResponse({ ok: true, rules: relevantRules().length, debug: debugMode });
   }
 });
 

@@ -87,6 +87,35 @@ function escapeHtml(s) {
   });
 }
 
+function sansScheme(u) {
+  return String(u).replace(/^https?:\/\//i, '');
+}
+
+const SECOND_LEVEL_TLDS = new Set(['com', 'net', 'org', 'gov', 'edu', 'ac', 'co', 'ne', 'or', 'go', 'mil', 'ltd', 'biz']);
+
+function hostOfPattern(pattern) {
+  let p = String(pattern || '').trim();
+  p = p.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const slash = p.search(/[/?#]/);
+  if (slash >= 0) p = p.slice(0, slash);
+  const colon = p.indexOf(':');
+  if (colon >= 0) p = p.slice(0, colon);
+  if (/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(p)) return p;
+  return '';
+}
+
+function registrableDomain(host) {
+  if (!host) return '';
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
+  const labels = host.split('.');
+  if (labels.length <= 2) return host;
+  const last = labels.length - 1;
+  if (/^[a-z]{2}$/.test(labels[last]) && SECOND_LEVEL_TLDS.has(labels[last - 1])) {
+    return labels.slice(-3).join('.');
+  }
+  return labels.slice(-2).join('.');
+}
+
 function render() {
   const list = document.getElementById('rule-list');
   list.innerHTML = '';
@@ -94,36 +123,58 @@ function render() {
     list.innerHTML = '<p class="empty">暂无规则，请在上方新增。</p>';
     return;
   }
+  const groups = new Map();
   rules.forEach((rule, index) => {
-    const el = document.createElement('div');
-    el.className = 'rule' + (rule.enabled === false ? ' disabled' : '');
-    el.innerHTML =
-      '<div class="rule-head">' +
-      '<strong>' + escapeHtml(rule.name) + '</strong>' +
-      '<span class="badge">' + (rule.enabled === false ? '已停用' : '启用中') + '</span>' +
-      '<span class="order">#' + (index + 1) + '</span>' +
-      '</div>' +
-      '<div class="rule-body"><code>' + escapeHtml(rule.pattern) + '</code>' +
-      '<span class="arrow">→</span><code>' + escapeHtml(rule.target) + '</code></div>' +
-      '<div class="rule-meta">' +
-      '<span>转发头: ' + escapeHtml((rule.forwardHeaders || []).join(', ') || '（无）') + '</span>' +
-      '<span>附加请求头: ' + escapeHtml(JSON.stringify(rule.addHeaders || {})) + '</span>' +
-      (rule.forwardPageCookie ? '<span>携带页面Cookie</span>' : '') +
-      (rule.includeCookies ? '<span>携带目标Cookie</span>' : '') +
-      '</div>' +
-      '<div class="rule-actions">' +
-      '<button data-act="toggle">' + (rule.enabled === false ? '启用' : '停用') + '</button>' +
-      '<button data-act="up"' + (index === 0 ? ' disabled' : '') + '>上移</button>' +
-      '<button data-act="down"' + (index === rules.length - 1 ? ' disabled' : '') + '>下移</button>' +
-      '<button data-act="copy">复制</button>' +
-      '<button data-act="edit">编辑</button>' +
-      '<button data-act="delete" class="danger">删除</button>' +
-      '</div>';
-    el.querySelectorAll('button[data-act]').forEach((btn) => {
-      btn.addEventListener('click', () => handleAction(rule, btn.dataset.act));
-    });
-    list.appendChild(el);
+    const host = rule.matchType === 'regex' ? '正则匹配' : (hostOfPattern(rule.pattern) || '其他');
+    const group = rule.matchType === 'regex' ? '正则匹配' : (registrableDomain(host) || '其他');
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push({ rule, index, host });
   });
+  for (const [group, items] of groups) {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'rule-group';
+    groupEl.innerHTML =
+      '<div class="rule-group-head">' +
+      '<span class="group-host">' + escapeHtml(group) + '</span>' +
+      '<span class="group-count">' + items.length + ' 条</span>' +
+      '</div>';
+    const body = document.createElement('div');
+    body.className = 'rule-group-body';
+    items.forEach(({ rule, index }) => body.appendChild(renderRuleEl(rule, index)));
+    groupEl.appendChild(body);
+    list.appendChild(groupEl);
+  }
+}
+
+function renderRuleEl(rule, index) {
+  const el = document.createElement('div');
+  el.className = 'rule' + (rule.enabled === false ? ' disabled' : '');
+  el.innerHTML =
+    '<div class="rule-head">' +
+    '<strong>' + escapeHtml(rule.name) + '</strong>' +
+    '<span class="badge">' + (rule.enabled === false ? '已停用' : '启用中') + '</span>' +
+    '<span class="order">#' + (index + 1) + '</span>' +
+    '</div>' +
+    '<div class="rule-body"><code>' + escapeHtml(rule.pattern) + '</code>' +
+    '<span class="arrow">→</span><code>' + escapeHtml(rule.target) + '</code></div>' +
+    '<div class="rule-meta">' +
+    '<span>转发头: ' + escapeHtml((rule.forwardHeaders || []).join(', ') || '（无）') + '</span>' +
+    '<span>附加请求头: ' + escapeHtml(JSON.stringify(rule.addHeaders || {})) + '</span>' +
+    (rule.forwardPageCookie ? '<span>携带页面Cookie</span>' : '') +
+    (rule.includeCookies ? '<span>携带目标Cookie</span>' : '') +
+    '</div>' +
+    '<div class="rule-actions">' +
+    '<button data-act="toggle">' + (rule.enabled === false ? '启用' : '停用') + '</button>' +
+    '<button data-act="up"' + (index === 0 ? ' disabled' : '') + '>上移</button>' +
+    '<button data-act="down"' + (index === rules.length - 1 ? ' disabled' : '') + '>下移</button>' +
+    '<button data-act="copy">复制</button>' +
+    '<button data-act="edit">编辑</button>' +
+    '<button data-act="delete" class="danger">删除</button>' +
+    '</div>';
+  el.querySelectorAll('button[data-act]').forEach((btn) => {
+    btn.addEventListener('click', () => handleAction(rule, btn.dataset.act));
+  });
+  return el;
 }
 
 function handleAction(rule, act) {
@@ -379,10 +430,6 @@ function escapeAttr(s) {
 
 function syncDebugToggle(enabled) {
   document.getElementById('f-debug').checked = !!enabled;
-}
-
-function sansScheme(u) {
-  return String(u).replace(/^https?:\/\//i, '');
 }
 
 function rewriteForTest(url, rule) {

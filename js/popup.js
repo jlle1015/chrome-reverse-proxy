@@ -8,17 +8,76 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
-function renderRules(rules) {
+const HOST_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+const SECOND_LEVEL_TLDS = new Set(['com', 'net', 'org', 'gov', 'edu', 'ac', 'co', 'ne', 'or', 'go', 'mil', 'ltd', 'biz']);
+
+function hostOfPattern(pattern) {
+  let p = String(pattern || '').trim();
+  p = p.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const slash = p.search(/[/?#]/);
+  if (slash >= 0) p = p.slice(0, slash);
+  const colon = p.indexOf(':');
+  if (colon >= 0) p = p.slice(0, colon);
+  return HOST_RE.test(p) ? p.toLowerCase() : '';
+}
+
+function registrableDomain(host) {
+  if (!host) return '';
+  if (IP_RE.test(host)) return host;
+  const labels = host.split('.');
+  if (labels.length <= 2) return host;
+  const last = labels.length - 1;
+  if (/^[a-z]{2}$/.test(labels[last]) && SECOND_LEVEL_TLDS.has(labels[last - 1])) {
+    return labels.slice(-3).join('.');
+  }
+  return labels.slice(-2).join('.');
+}
+
+function isRuleRelevant(rule, pageHost) {
+  if (!rule || rule.enabled === false) return false;
+  if (rule.matchType === 'regex') return true;
+  const host = hostOfPattern(rule.pattern);
+  if (!host) return true;
+  const ph = String(pageHost || '').toLowerCase();
+  const h = host.toLowerCase();
+  if (h === ph) return true;
+  if (ph.endsWith('.' + h) || h.endsWith('.' + ph)) return true;
+  const rootH = registrableDomain(h);
+  const rootP = registrableDomain(ph);
+  return !!rootH && rootH === rootP;
+}
+
+function relevantOf(rules, host) {
+  return rules.filter((r) => isRuleRelevant(r, host));
+}
+
+async function getTabHost() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https?:/.test(tab.url || '')) return '';
+    return new URL(tab.url).hostname;
+  } catch (e) {
+    return '';
+  }
+}
+
+function renderRules(rules, pageHost) {
   const list = document.getElementById('rule-list');
-  const anyEnabled = rules.some((r) => r.enabled !== false);
+  const shown = pageHost ? relevantOf(rules, pageHost) : rules;
+  const anyEnabled = shown.some((r) => r.enabled !== false);
   const btn = document.getElementById('btn-toggle-all');
   btn.textContent = anyEnabled ? '停用全部' : '启用全部';
-  if (!rules.length) {
-    list.innerHTML = '<p class="empty">暂无规则，请到配置页新增。</p>';
+  const countEl = document.getElementById('rule-count');
+  countEl.textContent = pageHost ? '(' + shown.length + '/' + rules.length + ')' : '(' + rules.length + ')';
+  if (!shown.length) {
+    list.innerHTML = '<p class="empty">' +
+      (rules.length ? '当前页面无匹配规则' : '暂无规则，请到配置页新增。') +
+      '</p>';
     return;
   }
   list.innerHTML = '';
-  rules.forEach((rule) => {
+  shown.forEach((rule) => {
     const el = document.createElement('div');
     el.className = 'rule' + (rule.enabled === false ? ' off' : '');
     const cb = document.createElement('input');
@@ -28,6 +87,7 @@ function renderRules(rules) {
       rule.enabled = cb.checked;
       el.className = 'rule' + (rule.enabled === false ? ' off' : '');
       await chrome.storage.local.set({ rules });
+      renderRules(rules, pageHost);
     });
     const name = document.createElement('span');
     name.className = 'name';
@@ -48,11 +108,22 @@ function kvTable(headers) {
     .join('');
 }
 
-function renderLogs(logs) {
+async function renderLogs() {
+  const data = await chrome.storage.local.get({ logs: [], rules: [] });
+  const logs = Array.isArray(data.logs) ? data.logs : [];
+  const rules = Array.isArray(data.rules) ? data.rules : [];
+  const host = await getTabHost();
+  let pool = logs;
+  if (host) {
+    const relevantIds = new Set(relevantOf(rules, host).map((r) => r.id));
+    pool = logs.filter((log) => relevantIds.has(log.ruleId));
+  }
   const list = document.getElementById('log-list');
-  const recent = (Array.isArray(logs) ? logs : []).slice(0, 8);
+  const recent = pool.slice(0, 8);
   if (!recent.length) {
-    list.innerHTML = '<p class="empty">暂无日志，页面调用被代理后会显示在这里。</p>';
+    list.innerHTML = '<p class="empty">' +
+      (host && logs.length ? '暂无当前页面匹配规则的日志' : '暂无日志，页面调用被代理后会显示在这里。') +
+      '</p>';
     return;
   }
   list.innerHTML = '';
@@ -125,7 +196,8 @@ document.getElementById('btn-toggle-all').addEventListener('click', async () => 
     r.enabled = !anyEnabled;
   });
   await chrome.storage.local.set({ rules });
-  renderRules(rules);
+  const host = await getTabHost();
+  renderRules(rules, host);
 });
 
 document.getElementById('btn-clear-log').addEventListener('click', async () => {
@@ -150,13 +222,16 @@ document.getElementById('open-logs').addEventListener('click', (e) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
-  if (changes.rules) renderRules(changes.rules.newValue || []);
-  if (changes.logs) renderLogs(changes.logs.newValue || []);
+  if (changes.rules) {
+    const host = getTabHost().then((h) => renderRules(changes.rules.newValue || [], h));
+  }
+  if (changes.logs) renderLogs();
 });
 
 (async () => {
   const data = await chrome.storage.local.get({ rules: [], logs: [] });
-  renderRules(data.rules || []);
-  renderLogs(data.logs || []);
+  const host = await getTabHost();
+  renderRules(data.rules || [], host);
+  renderLogs();
   renderTabStatus();
 })();
