@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      width: 100%;
+      min-width: 300px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      color: #24292f;
+      background: #fff;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      background: #fff;
+      border-bottom: 1px solid #eaeef2;
+      padding: 10px 12px;
+      z-index: 2;
+    }
+    .head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    h1 {
+      font-size: 14px;
+      margin: 0;
+    }
+    #tab-status {
+      font-size: 11px;
+      color: #bf8700;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+    .status-ok { color: #1a7f37; }
+    .status-warn { color: #bf8700; }
+    .actions {
+      display: flex;
+      gap: 6px;
+    }
+    button {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+      color: #24292f;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover { background: #eef1f4; }
+    button.primary {
+      background: #0969da;
+      border-color: #0969da;
+      color: #fff;
+    }
+    button.primary:hover { background: #0a5cc0; }
+    main { padding: 4px 12px 16px; }
+    section { margin-top: 14px; }
+    .section-title {
+      font-size: 12px;
+      color: #57606a;
+      margin: 0 0 6px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-title .count {
+      font-weight: 400;
+      color: #8c959f;
+    }
+    .rule {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid #f0f2f4;
+    }
+    .rule:last-child { border-bottom: none; }
+    .rule input[type="checkbox"] { flex: none; accent-color: #0969da; }
+    .rule .info { flex: 1; min-width: 0; }
+    .rule .name {
+      display: block;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rule .target {
+      display: block;
+      color: #888;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rule.off .name,
+    .rule.off .target {
+      color: #aaa;
+      text-decoration: line-through;
+    }
+    .empty {
+      color: #888;
+      font-size: 12px;
+    }
+    .log {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 4px 0;
+      font-size: 11px;
+      border-bottom: 1px dashed #f0f2f4;
+      cursor: pointer;
+      flex-wrap: wrap;
+    }
+    .log:last-child { border-bottom: none; }
+    .log.expanded {
+      background: #f6f8fa;
+      border-radius: 4px;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .log-time { color: #8c959f; flex: none; }
+    .log-method { flex: none; font-weight: 600; }
+    .log-status { flex: none; min-width: 34px; }
+    .log.ok .log-status { color: #1a7f37; }
+    .log.err .log-status { color: #cf222e; }
+    .log-url {
+      flex: 1;
+      min-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .log-duration { color: #8c959f; flex: none; }
+    .log-toggle { flex: none; color: #8c959f; }
+    .log-detail {
+      background: #fafbfc;
+      border: 1px solid #eaeef2;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin: 4px 0 8px;
+      font-size: 11px;
+    }
+    .detail-sec { margin-bottom: 8px; }
+    .detail-sec:last-child { margin-bottom: 0; }
+    .sec-label {
+      font-weight: 600;
+      color: #57606a;
+      margin: 0 0 3px;
+    }
+    .log-detail .kv {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px dashed #eee;
+      padding: 2px 0;
+    }
+    .log-detail .kv .k {
+      flex: none;
+      color: #57606a;
+      min-width: 100px;
+      word-break: break-all;
+    }
+    .log-detail .kv .v {
+      flex: 1;
+      word-break: break-all;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .log-detail pre {
+      margin: 0;
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 6px 8px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 140px;
+      overflow: auto;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .p-empty { color: #8c959f; margin: 0; }
+    .link-row {
+      margin: 12px 0 0;
+      font-size: 12px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .link-row a { color: #0969da; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="head-row">
+      <h1>Chrome Reverse Proxy</h1>
+      <div class="actions">
+        <button id="btn-toggle-all" class="primary">停用全部</button>
+      </div>
+    </div>
+    <div id="tab-status">正在检测当前页面…</div>
+  </header>
+
+  <main>
+    <section>
+      <p class="section-title">当前页面规则 <span class="count" id="rule-count"></span></p>
+      <div id="rule-list"><p class="empty">加载中…</p></div>
+    </section>
+
+    <section>
+      <p class="section-title">拦截日志
+        <span style="display:flex;gap:8px;align-items:center;">
+          <span class="count" id="log-count"></span>
+          <button id="btn-clear-log" title="清空全部日志">清空</button>
+        </span>
+      </p>
+      <div id="log-list"><p class="empty">加载中…</p></div>
+    </section>
+
+    <p class="link-row">
+      <a id="open-options" href="#">打开规则配置</a>
+      <a id="open-logs" href="#">查看全部日志</a>
+    </p>
+  </main>
+
+  <script src="../js/sidepanel.js"></script>
+</body>
+</html>

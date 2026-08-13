@@ -52,10 +52,18 @@ function relevantOf(rules, host) {
   return rules.filter((r) => isRuleRelevant(r, host));
 }
 
-async function getTabHost() {
+async function getActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !/^https?:/.test(tab.url || '')) return '';
+    return tab || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function tabHost(tab) {
+  if (!tab || !/^https?:/.test(tab.url || '')) return '';
+  try {
     return new URL(tab.url).hostname;
   } catch (e) {
     return '';
@@ -66,10 +74,8 @@ function renderRules(rules, pageHost) {
   const list = document.getElementById('rule-list');
   const shown = pageHost ? relevantOf(rules, pageHost) : rules;
   const anyEnabled = shown.some((r) => r.enabled !== false);
-  const btn = document.getElementById('btn-toggle-all');
-  btn.textContent = anyEnabled ? '停用全部' : '启用全部';
-  const countEl = document.getElementById('rule-count');
-  countEl.textContent = pageHost ? '(' + shown.length + '/' + rules.length + ')' : '(' + rules.length + ')';
+  document.getElementById('btn-toggle-all').textContent = anyEnabled ? '停用全部' : '启用全部';
+  document.getElementById('rule-count').textContent = pageHost ? '(' + shown.length + '/' + rules.length + ')' : '(' + rules.length + ')';
   if (!shown.length) {
     list.innerHTML = '<p class="empty">' +
       (rules.length ? '当前页面无匹配规则' : '暂无规则，请到配置页新增。') +
@@ -89,13 +95,16 @@ function renderRules(rules, pageHost) {
       await chrome.storage.local.set({ rules });
       renderRules(rules, pageHost);
     });
+    const info = document.createElement('span');
+    info.className = 'info';
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = rule.name || '(未命名)';
     const target = document.createElement('span');
     target.className = 'target';
     target.textContent = '→ ' + (rule.target || '');
-    el.append(cb, name, target);
+    info.append(name, target);
+    el.append(cb, info);
     list.appendChild(el);
   });
 }
@@ -108,21 +117,19 @@ function kvTable(headers) {
     .join('');
 }
 
-async function renderLogs() {
-  const data = await chrome.storage.local.get({ logs: [], rules: [] });
-  const logs = Array.isArray(data.logs) ? data.logs : [];
-  const rules = Array.isArray(data.rules) ? data.rules : [];
-  const host = await getTabHost();
-  let pool = logs;
-  if (host) {
-    const relevantIds = new Set(relevantOf(rules, host).map((r) => r.id));
-    pool = logs.filter((log) => relevantIds.has(log.ruleId));
-  }
+function renderLogs(logs, rules, pageHost) {
   const list = document.getElementById('log-list');
-  const recent = pool.slice(0, 8);
+  let pool = Array.isArray(logs) ? logs : [];
+  let count = pool.length;
+  if (pageHost) {
+    const relevantIds = new Set(relevantOf(rules, pageHost).map((r) => r.id));
+    pool = pool.filter((log) => relevantIds.has(log.ruleId));
+  }
+  document.getElementById('log-count').textContent = pageHost ? '(' + pool.length + '/' + count + ')' : '(' + pool.length + ')';
+  const recent = pool.slice(0, 20);
   if (!recent.length) {
     list.innerHTML = '<p class="empty">' +
-      (host && logs.length ? '暂无当前页面匹配规则的日志' : '暂无日志，页面调用被代理后会显示在这里。') +
+      (pageHost && count ? '暂无当前页面匹配规则的日志' : '暂无日志，页面调用被代理后会显示在这里。') +
       '</p>';
     return;
   }
@@ -171,21 +178,29 @@ async function renderLogs() {
 
 async function renderTabStatus() {
   const el = document.getElementById('tab-status');
+  const tab = await getActiveTab();
+  if (!tab || !/^https?:/.test(tab.url || '')) {
+    el.className = 'status-warn';
+    el.textContent = '当前页面不注入 Content Script';
+    return;
+  }
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !/^https?:/.test(tab.url || '')) {
-      el.className = 'status-warn';
-      el.textContent = '当前页面不注入 Content Script';
-      return;
-    }
     const resp = await chrome.tabs.sendMessage(tab.id, { type: 'ping' });
     el.className = 'status-ok';
     el.textContent =
-      '当前页面：已注入（规则 ' + (resp && resp.rules || 0) + ' 条' + (resp && resp.debug ? '，调试模式开启' : '') + '）';
+      tab.url + ' — 已注入（规则 ' + (resp && resp.rules || 0) + ' 条' + (resp && resp.debug ? '，调试模式开启' : '') + '）';
   } catch (e) {
     el.className = 'status-warn';
-    el.textContent = '当前页面：未检测到 Content Script，请刷新页面或重新加载扩展';
+    el.textContent = tab.url + ' — 未检测到 Content Script，请刷新页面或重新加载扩展';
   }
+}
+
+async function refreshAll() {
+  const data = await chrome.storage.local.get({ rules: [], logs: [] });
+  const tab = await getActiveTab();
+  const host = tabHost(tab);
+  renderRules(Array.isArray(data.rules) ? data.rules : [], host);
+  renderLogs(data.logs, data.rules, host);
 }
 
 document.getElementById('btn-toggle-all').addEventListener('click', async () => {
@@ -196,8 +211,8 @@ document.getElementById('btn-toggle-all').addEventListener('click', async () => 
     r.enabled = !anyEnabled;
   });
   await chrome.storage.local.set({ rules });
-  const host = await getTabHost();
-  renderRules(rules, host);
+  const tab = await getActiveTab();
+  renderRules(rules, tabHost(tab));
 });
 
 document.getElementById('btn-clear-log').addEventListener('click', async () => {
@@ -205,23 +220,8 @@ document.getElementById('btn-clear-log').addEventListener('click', async () => {
   await chrome.storage.local.remove('logs');
   btn.textContent = '已清空';
   setTimeout(() => {
-    btn.textContent = '清空日志';
+    btn.textContent = '清空';
   }, 1200);
-});
-
-document.getElementById('open-sidepanel').addEventListener('click', async (e) => {
-  e.preventDefault();
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (chrome.sidePanel && tab && tab.windowId) {
-      await chrome.sidePanel.open({ windowId: tab.windowId });
-      window.close();
-    } else {
-      chrome.runtime.openOptionsPage();
-    }
-  } catch (err) {
-    chrome.runtime.openOptionsPage();
-  }
 });
 
 document.getElementById('open-options').addEventListener('click', (e) => {
@@ -237,16 +237,17 @@ document.getElementById('open-logs').addEventListener('click', (e) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
-  if (changes.rules) {
-    const host = getTabHost().then((h) => renderRules(changes.rules.newValue || [], h));
-  }
-  if (changes.logs) renderLogs();
+  if (changes.rules || changes.logs) refreshAll();
 });
 
-(async () => {
-  const data = await chrome.storage.local.get({ rules: [], logs: [] });
-  const host = await getTabHost();
-  renderRules(data.rules || [], host);
-  renderLogs();
+chrome.tabs.onActivated.addListener(() => {
+  refreshAll();
   renderTabStatus();
-})();
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) refreshAll();
+});
+
+refreshAll();
+renderTabStatus();

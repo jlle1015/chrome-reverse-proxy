@@ -2,12 +2,15 @@
   "manifest_version": 3,
   "name": "Chrome Reverse Proxy",
   "version": "1.0.0",
-  "minimum_chrome_version": "111",
+  "minimum_chrome_version": "116",
   "description": "浏览器内反向代理：Background 代理 + Content Script 重写，规避跨域并携带/添加请求头。",
-  "permissions": ["storage"],
+  "permissions": ["storage", "sidePanel"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "js/background.js"
+  },
+  "side_panel": {
+    "default_path": "html/sidepanel.html"
   },
   "content_scripts": [
     {
